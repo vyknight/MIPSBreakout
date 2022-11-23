@@ -22,6 +22,7 @@ MY_COLOURS:
 	.word	0xff0000    # red
 	.word	0x00ff00    # green
 	.word	0x0000ff    # blue
+	.word	0x808080    # gray
 # The address of the keyboard. Don't forget to connect it!
 ADDR_KBRD:
     .word 0xffff0000
@@ -40,26 +41,87 @@ ADDR_KBRD:
 main:
     # Initialize the game
     
+    # draw borders
+    # top border
+    la $a1, MY_COLOURS
+    lw $a1, 12($a1)	# grey
+    la $a0, ADDR_DSPL
+    lw $a0, 0($a0)
+    li $a2, 4
+    li $a3, 32
+    jal draw_line
+    
+    # draw red horizontal line
+    # left border
+    la $a1, MY_COLOURS
+    lw $a1, 12($a1)
+    la $a0, ADDR_DSPL
+    lw $a0, 0($a0)
+    li $a2, 128
+    li $a3, 32
+    jal draw_line
+    
+    # draw blue vertical line
+    # right border
+    la $a1, MY_COLOURS
+    lw $a1, 12($a1)
+    la $a0, ADDR_DSPL
+    lw $a0, 0($a0)
+    addi $a0, $a0, 124	# 128 would actually be right off the screen 
+    li $a2, 128
+    li $a3, 32
+    jal draw_line
+    
+    # draw bricks
+    # first line
+    
+draw_bricks:
+    li $s0, 8	# iteration max
+    li $s1, 0   # iteration num
+    la $s2, ADDR_DSPL
+    lw $s2, 0($s2)
+draw_bricks_loop:
+    slt $s2, $s1, $s0
+    beq $s2, $0, draw_bricks_end
+    
+    	la $a1, MY_COLOURS
+    	lw $a1, 0($a1)
+    	
+    	add $a0, $s2, $0
+	
+	li $a2, 4	# loading here so we can use the value for multi
+    	li $a3, 3
+    	
+    jal draw_line
+    addi $s1, $s1, 1
+    addi $s2, $s2, 16
+    b draw_bricks_loop
+    
+draw_bricks_end:
+    
+    # go to game loop
+    b game_loop
+    
 
-# draw horizontal line function ($a0 - start_address, $a1 - colour, $t9 - unit increment, $t8 return - void) 
+# FUNCTION draw line across screen ($a0 - start_address, $a1 - colour, 
+					#$a2 memory increment (4 for horizontal, 128 for vertical), 
+					#$a3 number of units drawn (32 for across screen)) return - void
 draw_line:
-    li $t0, 32  # loop runs 32 times
     li $t1, 0   # iteration num
 
 draw_line_loop:
-    slt $t2, $t1, $t0
-    beq $t2, $0, end_draw_line
+    slt $t2, $t1, $a3
+    beq $t2, $0, draw_line_end
 
         sw $a1, 0($a0)
-        addi $a0, $a0, 4
+        add $a0, $a0, $a2
     
     addi $t1, $t1, 1
     b draw_line_loop 
 
-draw_h_line_end:
+draw_line_end:
     jr $ra 
-
-# draw vertical line function ($a0 - start_address, $a1 - colour, return - void) 
+  
 
 game_loop:
 	# 1a. Check if key has been pressed
@@ -71,3 +133,4 @@ game_loop:
 
     #5. Go back to 1
     b game_loop
+    
