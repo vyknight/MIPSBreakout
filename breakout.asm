@@ -41,12 +41,15 @@ BITMAP_UNITS_PER_COLUMN:
 PADDLE_COLOUR:
 	.word 0x7851a9 # This is Royal Purple
 	
+<<<<<<< HEAD
 MY_COLOURS:
 	.word	0xff0000    # red
 	.word	0x00ff00    # green
 	.word	0x0000ff    # blue
 	.word	0x808080    # gray
 	
+=======
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
 VOID_BLACK:
 	.word 0
 	
@@ -91,6 +94,7 @@ main:
     
     jal draw_paddle
    
+<<<<<<< HEAD
     # draw borders
     # top border
     la $a1, MY_COLOURS
@@ -332,27 +336,150 @@ draw_bricks_end:
     addi $sp, $sp, 24
     
     jr $ra 
-
-# FUNCTION draw line across screen ($a0 - start_address, $a1 - colour, 
-					#$a2 memory increment (4 for horizontal, 128 for vertical), 
-					#$a3 number of units drawn (32 for across screen)) return - void
-draw_line:
-    li $t1, 0   # iteration num
-
-draw_line_loop:
-    slt $t2, $t1, $a3
-    beq $t2, $0, draw_line_end
-
-        sw $a1, 0($a0)
-        add $a0, $a0, $a2
+=======
+    jal game_loop
     
-    addi $t1, $t1, 1
-    b draw_line_loop 
 
+    
+    j exit
+    
+# Move the drawn 'paddle' 1 pixel horizontally (can be +1/-1) by drawing over it and then re-drawing it at the new position.
+# move_paddle(x_shift). Note this calls draw_paddle so, all 4 argument registers get used. 
+move_paddle:
+	
+	# Save arguments that we plan to use later, which is just the one. And the original $ra - before we need to use it.
+	addi $sp $sp -8
+	sw $a0 0($sp)
+	sw $ra 4($sp)
+	
+	# Draw a black paddle at the current spot, current length.
+	lw $a0 Paddle
+	lw $a1 Paddle + 4
+	lw $a2 Paddle + 8
+	lw $a3 VOID_BLACK
+	
+	jal draw_paddle 
+	
+	# Restore saved $a0 to use...
+	lw $a0 0($sp)
+	addi $sp $sp 4
+	
+	
+	# Move the X coordinate by 1... Load in the current Y and length and colour.
+	lw $t0 Paddle
+	add $a0 $t0 $a0
+	lw $a1 Paddle + 4
+	lw $a2 Paddle + 8
+	lw $a3 PADDLE_COLOUR
+	
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
+
+	bge $a0 0 x_not_too_small
+	# if body: reset X if the coordinate is somebow negative to avoid bleeding into a different row.
+		li $t0 31
+		sub $t0 $t0 $a2 # subtract length from max unit so that paddle will fit.
+		addi $t0 $t0 1 # There's actually an off by 1 if we do that. So, add one back...
+		add $a0 $0 $t0 # set A to the max on the right side.
+
+x_not_too_small: 
+
+	add $t0 $a0 $a2
+	ble $t0 BITMAP_UNITS_PER_ROW x_is_ok
+	# if body: reset X if the coordinate is over DISPLAY WIDTH to avoid bleeding into a different row.
+		li $a0 0
+	
+x_is_ok: 
+	# We plan to use this version of $a0 later, so save it.
+	addi $sp $sp -4
+	sw $a0 0($sp)
+	
+	jal draw_paddle 
+	
+	lw $a0 0($sp)
+	addi $sp $sp 4
+	
+	
+	# Update the new X-value.
+	sw $a0 Paddle
+
+	# Restore super original values. Note that $a0 has already be re-loaded where appropriate.
+	lw $ra 0($sp)
+	addi $sp $sp 4
+	
+	jr $ra
+	
+	
+
+   
+# Get the display address of a point at X, Y on the display grid, assuming above settings are observed.
+# get_display_address(x, y) : Address (in $v0)
+get_display_address:
+
+<<<<<<< HEAD
 draw_line_end:
     jr $ra 
 
 #########################################################
+=======
+	# Load the base address of the display.
+	la $v0 ADDR_DSPL
+	lw $v0, 0($v0)
+	
+	# Get the x and Y offsets
+	sll $a0, $a0, 2
+	sll $a1, $a1 7
+	
+	# Increment to the display address.
+	add $v0 $v0 $a0
+	add $v0 $v0 $a1
+	
+	jr $ra
+
+# Draw a paddle starting at X, Y with a specific length, in the colour at colour_address.
+# draw_paddle(x, y, length, colour_address)
+draw_paddle:
+	# Prologue - make space for our 1 local variables.
+	addi $sp $sp -4
+	sw $s1 0($sp)
+	
+	# Loop length times.
+	li $s1 0 # $s1 = loop measure.
+	
+draw_paddle_loop:
+	bge $s1, $a2 fin_paddle_loop # While i < length;
+	
+	# Draw at a pixel (X + loop measure)
+	addi $sp $sp -16
+	sw $a0 0($sp)
+	sw $a1 4($sp)
+	sw $a2 8($sp)
+	sw $ra 12($sp)
+	
+	# Pretty much pass X+i, Y, colour to draw_paddle
+	add $a0 $a0 $s1
+	# Y remains unchanged.
+	add $a2 $0 $a3 # Shift colour over a little bit.
+	jal draw_pixel
+	
+	lw $a0 0($sp)
+	lw $a1 4($sp)
+	lw $a2 8($sp)
+	lw $ra 12($sp)
+	addi $sp $sp 16
+	
+	# Increment the loop measure and start again.
+	addi $s1 $s1 1
+	j draw_paddle_loop
+		
+fin_paddle_loop:
+
+	# Epilogue
+	lw $s1 0($sp)
+	addi $sp $sp 4
+	jr $ra
+
+    
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
 
 game_loop:
     # Do the gravity.
@@ -640,7 +767,11 @@ check_ball_on_paddle:
 	
 	
 	
+<<<<<<< HEAD
 
+=======
+	
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
 check_ball_on_paddle_left:
 	# Check if it's within the paddle's bounds (but on the left - that X is between start and paddle middle. start <= X < mid
 	# If so, set the direction to (-1, -1). Note < mid since middle is on the higher half.\
@@ -662,8 +793,12 @@ ball_not_on_paddle:
 	addi $sp $sp 24
 	
 	jr $ra
+<<<<<<< HEAD
 
 
+=======
+	
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
 	
 	
 
@@ -678,4 +813,8 @@ ball_not_on_paddle:
 
 
 
+<<<<<<< HEAD
 	
+=======
+	
+>>>>>>> f4b9d9d39d679080175ff170c9edbff80037417e
