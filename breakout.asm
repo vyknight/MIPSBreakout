@@ -296,7 +296,7 @@ draw_bricks:
     sw $s0, 0($sp)	# iteration max 
     
     
-    li $s0, 5	# iteration max
+    li $s0, 7	# iteration max
     li $s1, 0   # iteration num
     
 draw_bricks_loop:
@@ -685,15 +685,13 @@ check_ball_on_brick:
 	
 	# $v0 should contain the next address of the ball
 	lw $t2, 0($v0)
+	move $t5, $v0	# address of the next location
 	
 	beq $t2, 0xFF0000, ball_on_brick
 	beq $t2, 0x00FF00, ball_on_brick
 	beq $t2, 0x0000FF, ball_on_brick 
 	
 	# ball not on brick, return return 
-	add $a0, $t9, $0
-	li $v0, 1
-	syscall 
 	b check_ball_on_brick_fin
 	
 	
@@ -707,9 +705,8 @@ ball_on_brick:
 	sw $t2, 12($t3)
 	
 	# destroy the brick 
-	move $a0, $t2
-	li $v0, 1
-	syscall 
+	add $a0, $t5, $0
+	jal destroy_brick
 	
 	# EPILOGUE restore values 
 check_ball_on_brick_fin:
@@ -717,6 +714,55 @@ check_ball_on_brick_fin:
 	lw $s1, 4($sp)
 	lw $ra, 8($sp)
 	addi $sp, $sp, 12
+	jr $ra
+	
+# FUNCTION DESTROY BRICK DESTROYS THE BRICK AT ADDRESS $A0 
+# OK I TRIED TO DO THIS RECURSIVELY BUT I THINK IT'S EASIER FOR ME TO JUST HAVE A LONGER SCRIPT CONSIDERING ITS 5 TILES IN TOTAL
+destroy_brick:
+# PROLOGUE
+	addi $sp, $sp, -8
+	sw $ra, 0($sp)
+	sw $s0, 4($sp)
+	move $s0, $a0
+
+	# we know this address needs to be made black
+	sw $0, 0($s0) 
+	
+	# check if left black
+	addi $t0, $s0, -4
+	lw $t1, 0($t0)
+	beq $t1, 0, check_right_black 	# if it's black we don't have to do anything on the left 
+	
+	make_left_black:
+	sw $0, -4($s0)
+	# check if left left black
+	addi $t0, $s0, -8
+	lw $t1, 0($t0)
+	beq $t1, 0, check_right_black 	# if left left is black we don't have to do anything 
+	
+	# make_left_left_black
+	sw $0, -8($s0)
+	
+	check_right_black:
+	addi $t0, $s0, 4
+	lw $t1, 0($t0)
+	beq $t1, 0, destroy_brick_fin 	# if right is black we're done 
+	
+	make_right_black:
+	sw $0, 4($s0)
+	# check if right right is black 
+	addi $t0, $s0, 8
+	lw $t1, 0($t0)
+	beq $t1, 0, destroy_brick_fin 
+	
+	# make_right_right_black
+	sw $0, 8($s0)
+	
+destroy_brick_fin:
+# EPILOGUE
+	lw $ra, 0($sp)
+	lw $s0, 4($sp)
+	addi $sp, $sp, 8
 	jr $ra
 
 
