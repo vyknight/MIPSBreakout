@@ -61,7 +61,7 @@ Ball:
 	.word 1 # Current Y direction
 	
 Paddle:
-	.word 14 # Paddle X
+	.word 12 # Paddle X
 	.word 30 # Paddle Y
 	.word 6 # Paddle Length
 	
@@ -108,7 +108,7 @@ main:
     la $a0, ADDR_DSPL
     lw $a0, 0($a0)
     li $a2, 128
-    li $a3, 32
+    li $a3, 30
     jal draw_line
     
     # draw blue vertical line
@@ -119,7 +119,7 @@ main:
     lw $a0, 0($a0)
     addi $a0, $a0, 124	# 128 would actually be right off the screen 
     li $a2, 128
-    li $a3, 32
+    li $a3, 30
     jal draw_line
     
     # draw bricks
@@ -379,7 +379,7 @@ game_loop:
     # Now differentiate the keys and branch...
     beq $t2 97 key_press_a
     beq $t2 100 key_press_d
-    
+    beq $t2 113 key_press_q
     # 2a. Check for collisions
 
     # 2b. Update locations (paddle, ball)
@@ -403,12 +403,16 @@ fin_game_loop:
 key_press_a:
 	li $a0 -1
 	jal move_paddle
-	b game_loop
+	b game_loop_cleanup
 	
 key_press_d:
 	li $a0 1
 	jal move_paddle
-	b game_loop
+	b game_loop_cleanup
+
+key_press_q: # Exit on pressing q :)
+	li $v0, 10
+	syscall
     
 
 # Conditionals based on what key is pressed on the keyboard.
@@ -520,6 +524,17 @@ done_moving_ball:
 	
 
 
+play_bounce_noise:
+	# Play bounce noise.
+	li $a0 69
+	li $a1 400
+	li $a2 127
+	li $a3 127
+	li $v0 31
+	syscall
+	
+	jr $ra
+	
 # Checks whether the ball collides with the top edge. If so, makes the ball bounce down. Maintains the X for now.
 check_ball_on_top:
 	# Check the Y coordinate of the ball...
@@ -529,6 +544,12 @@ check_ball_on_top:
 	bgt $t0 1 ball_is_vertically_ok
 	li $t0 1
 	sw $t0 Ball + 12
+	
+	addi $sp $sp -4
+	sw $ra 0($sp)
+	jal play_bounce_noise	
+	lw $ra 0($sp)
+	addi $sp $sp 4
 	
 ball_is_vertically_ok:
 	jr $ra
@@ -578,10 +599,16 @@ ball_is_not_kill:
 check_ball_on_left:
 	# Load the X coordinate of the ball.
 	lw $t0 Ball
-	# If the X coordinate is 0 or somehow even less, Go right. Otherwise it should be fine.
-	bgt $t0, 0 ball_ok_leftside
+	# If the X coordinate is 1 or somehow even less, Go right. Otherwise it should be fine.
+	bgt $t0, 1 ball_ok_leftside
 	li $t0 1 
 	sw $t0 Ball + 8
+	
+	addi $sp $sp -4
+	sw $ra 0($sp)
+	jal play_bounce_noise	
+	lw $ra 0($sp)
+	addi $sp $sp 4
 	
 ball_ok_leftside:
 	jr $ra
@@ -589,10 +616,16 @@ ball_ok_leftside:
 check_ball_on_right:
 	# Load the X coordinate of the ball.
 	lw $t0 Ball
-	# If the X coordinate is somehow larger or equal to 31, then bounce left. Otherwise it should be fine.
-	blt $t0 31 ball_ok_rightside
+	# If the X coordinate is somehow larger or equal to 30, then bounce left. Otherwise it should be fine.
+	blt $t0 30 ball_ok_rightside
 	li $t0 -1
 	sw $t0 Ball + 8
+	
+	addi $sp $sp -4
+	sw $ra 0($sp)
+	jal play_bounce_noise	
+	lw $ra 0($sp)
+	addi $sp $sp 4
 	
 ball_ok_rightside:
 	jr $ra
@@ -624,7 +657,7 @@ check_ball_on_paddle:
 	
 	# To get the middle, take start + (length // 2) That gets the middle on the right side.  # 0 1 2 |3| 4 5 
 	lw $s5 Paddle + 8
-	sll $s5 $s5 1
+	sra $s5 $s5 1
 	add $s5 $s5 $s2 # Now we have the middle, kind of.
 		
 	# Check if it's within the paddle's bounds (but on the right). (S
@@ -633,7 +666,8 @@ check_ball_on_paddle:
 	
 	# Check that X is between paddle_middle and end. mid <= X <= End
 	# If so, set the direction to (1, -1).
-	bgt $s0 $s4 check_ball_on_paddle_left 
+	bgt $s0 $s4 ball_not_on_paddle 
+	# I think the problem is that this isn't an absolute coordinate. Rather, it's a relative measure from start of paddle. So there'd be some weirdness here for sure!
 	blt $s0 $s5 check_ball_on_paddle_left # Strictly less since the 'middle' index is on the right.
 	
 	li $t6 1
@@ -641,11 +675,16 @@ check_ball_on_paddle:
 	li $t6 -1
 	sw $t6 Ball + 12
 	
+	# Once done, DO NOT go into the left check branch!! Finish up!
+	j ball_not_on_paddle #(Anymore. At least not headed there.)
+	
 check_ball_on_paddle_left:
 	# Check if it's within the paddle's bounds (but on the left - that X is between start and paddle middle. start <= X < mid
-	# If so, set the direction to (-1, -1). Note < mid since middle is on the higher half.\
-	bge $s0 $s4 ball_not_on_paddle
+	# If so, set the direction to (-1, -1). Note < mid since middle is on the higher half. 
+	# Also note if we end up here in the first place we know < mid.
 	blt $s0 $s2 ball_not_on_paddle
+	
+	# Being here with the ball on the paddle means 
 	li $t6 -1
 	sw $t6 Ball + 8
 	li $t6 -1
@@ -689,26 +728,86 @@ check_ball_on_brick:
 	
 	beq $t2, 0xFF0000, ball_on_brick
 	beq $t2, 0x00FF00, ball_on_brick
-	beq $t2, 0x0000FF, ball_on_brick 
+	beq $t2, 0xff66ff, ball_on_brick # i hp red brick 
+	beq $t2, 0x0000FF, ball_on_brick
 	
 	# ball not on brick, return return 
 	b check_ball_on_brick_fin
 	
 	
 ball_on_brick:
-	li $a0, 6
-	li $v0, 1
-	syscall
+	add $t6, $t2, $0
+	
 	# inverse ball Y direction 
 	sub $t2, $0, $t1
 	la $t3, Ball
 	sw $t2, 12($t3)
 	
+	# decrease brick hp if brick is 0xFF0000
+	beq $t6, 0xFF0000, hurt_brick_branch
+	
 	# destroy the brick 
 	add $a0, $t5, $0
 	jal destroy_brick
+	b after_destroy_brick
 	
+	hurt_brick_branch:
+	add $a0, $t5, $0
+	jal hurt_brick
+	
+	after_destroy_brick:
+	# Play the sound :)
+	li $a0 69
+	li $a1 400
+	li $a2 121
+	li $a3 127
+	li $v0 31
+	syscall
+	
+	# If the ball was going to the first brick @ Y = 6 then kill the row.
+	# Check both top and below since we already determined the ball was headed to the brick by being here.
+	blt $s1 5 check_ball_on_brick_fin
+	bgt $s1 7 check_ball_on_brick_fin
+	blt $s0 3 check_ball_on_brick_fin
+	bgt $s0 6 check_ball_on_brick_fin
+	
+destroy_the_row:
+
+	# Play an ominous sound.
+	li $a0 69
+	li $a1 2000
+	li $a2 63
+	li $a3 127
+	li $v0 33
+	syscall
+	
+	# Get the address of 3, 6
+	addi $sp $sp -4
+	sw $ra 0($sp)
+	li $a0 3
+	li $a1 6
+	jal get_display_address
+	lw $ra 0($sp)
+	addi $sp $sp 4	
+
+	# Address should be in $v0 now.
+	addi $sp $sp -4
+	sw $ra 0($sp)
+	
+	# Draw a dark line
+	move $a0 $v0
+	lw $a1 VOID_BLACK
+	li $a2 4
+	li $a3 28
+	
+	jal draw_line
+	
+	lw $ra 0($sp)
+	addi $sp $sp 4	
+	
+	# Use that to draw a black line on the row.
 	# EPILOGUE restore values 
+	
 check_ball_on_brick_fin:
 	lw $s0, 0($sp)
 	lw $s1, 4($sp)
@@ -720,12 +819,19 @@ check_ball_on_brick_fin:
 # OK I TRIED TO DO THIS RECURSIVELY BUT I THINK IT'S EASIER FOR ME TO JUST HAVE A LONGER SCRIPT CONSIDERING ITS 5 TILES IN TOTAL
 destroy_brick:
 # PROLOGUE
-	addi $sp, $sp, -8
+	addi $sp, $sp, -12
 	sw $ra, 0($sp)
 	sw $s0, 4($sp)
+	sw $s1, 8($sp)
 	move $s0, $a0
+	li $s1, 0x707070
 
 	# we know this address needs to be made black
+	sw $s1, 0($s0)
+	# sleep
+	li $a0, 400
+	li $v0, 32
+	syscall
 	sw $0, 0($s0) 
 	
 	# check if left black
@@ -734,6 +840,12 @@ destroy_brick:
 	beq $t1, 0, check_right_black 	# if it's black we don't have to do anything on the left 
 	
 	make_left_black:
+	
+	sw $s1, -4($s0)
+	# sleep
+	li $a0, 400
+	li $v0, 32
+	syscall
 	sw $0, -4($s0)
 	# check if left left black
 	addi $t0, $s0, -8
@@ -741,6 +853,11 @@ destroy_brick:
 	beq $t1, 0, check_right_black 	# if left left is black we don't have to do anything 
 	
 	# make_left_left_black
+	sw $s1, -8($s0)
+	# sleep
+	li $a0, 400
+	li $v0, 32
+	syscall
 	sw $0, -8($s0)
 	
 	check_right_black:
@@ -749,6 +866,11 @@ destroy_brick:
 	beq $t1, 0, destroy_brick_fin 	# if right is black we're done 
 	
 	make_right_black:
+	sw $s1, 4($s0)
+	# sleep
+	li $a0, 400
+	li $v0, 32
+	syscall
 	sw $0, 4($s0)
 	# check if right right is black 
 	addi $t0, $s0, 8
@@ -756,17 +878,73 @@ destroy_brick:
 	beq $t1, 0, destroy_brick_fin 
 	
 	# make_right_right_black
+	sw $s1, 8($s0)
+	# sleep
+	li $a0, 400
+	li $v0, 32
+	syscall
 	sw $0, 8($s0)
 	
 destroy_brick_fin:
 # EPILOGUE
 	lw $ra, 0($sp)
 	lw $s0, 4($sp)
-	addi $sp, $sp, 8
+	lw $s1, 8($sp)
+	addi $sp, $sp, 12
 	jr $ra
+	
+hurt_brick:
+# PROLOGUE
+	addi $sp, $sp, -12
+	sw $ra, 0($sp)
+	sw $s0, 4($sp)
+	move $s0, $a0
+	sw $s1, 8($sp) # this is used to store the colour 
+	li $s1, 0xff66ff
+	
+	# we know this address needs to be made pink
+	sw $s1, 0($s0) 
+	
+	# check if left black
+	addi $t0, $s0, -4
+	lw $t1, 0($t0)
+	beq $t1, 0, hbcheck_right_black 	# if it's black we don't have to do anything on the left 
+	
+	hbmake_left_pink:
+	sw $s1, -4($s0)
+	# check if left left black
+	addi $t0, $s0, -8
+	lw $t1, 0($t0)
+	beq $t1, 0, hbcheck_right_black 	# if left left is black we don't have to do anything 
+	
+	# make_left_left_pink
+	sw $s1, -8($s0)
+	
+	hbcheck_right_black:
+	addi $t0, $s0, 4
+	lw $t1, 0($t0)
+	beq $t1, 0, hurt_brick_fin 	# if right is black we're done 
+	
+	hbmake_right_pink:
+	sw $s1, 4($s0)
+	# check if right right is black 
+	addi $t0, $s0, 8
+	lw $t1, 0($t0)
+	beq $t1, 0, hurt_brick_fin 
+	
+	# make_right_right_pink
+	sw $s1, 8($s0)
+	
+hurt_brick_fin:
+# EPILOGUE
+	lw $ra, 0($sp)
+	lw $s0, 4($sp)
+	lw $s1, 8($sp)
+	addi $sp, $sp, 12
+	jr $ra
+	
 
-
-
+	
 # Subtract the direction from the current Y.
 
 

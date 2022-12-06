@@ -1,0 +1,57 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{parskip}
+\usepackage{geometry}
+\geometry{
+    top = 0.75in,
+    bottom = 0.75in,
+    right = 0.75in,
+    left = 0.75in,
+}
+
+\title{Mips Project Demonstration 1}
+\author{Matthew Liu and Michael Yu}
+\date{November 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Memory}
+
+We plan on storing several pieces of data in memory, some of these for convenience and others as more of a necessity. 
+
+The necessary items are the address of the keyboard and display. As well as information related to the ball and paddle which are stored as an array. The items of convenience are colours, unit size and other constants that may be variables in the future. 
+
+We have stored these simply by using .word followed by the value. 
+
+We will also be accessing the memory used by the display for purposes of collision detection and whatnot, we felt no need in storing a separate map of the game when we can just look for colours in the display address. 
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.65\textwidth]{Screen Shot 2022-11-29 at 12.17.32 AM.jpg}
+    \caption{An example of some data laid out in memory}
+    \label{f:part1_timing}
+\end{figure}
+
+\section{The scene}
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.65\textwidth]{Screen Shot 2022-11-29 at 12.19.31 AM.jpg}
+    \caption{The scene when the game starts}
+    \label{f:part1_timing}
+\end{figure}
+
+\section{collision}
+
+- If the ball hits the top, it should basically just reflect down but keep its original X direction.
+- If the ball hits the bottom, well, it should go into the abyss as the user's soul is consumed by Steve Harvey's ghost
+- If the ball hits the left, it should basically reflect right but keep going in its original Y
+- If the ball hits right, it should reflect left but keep going in its original Y.
+- If the ball hits the paddle, more or less, go left on the left side (AND UP). Or if it hits the right side, go right on the right side (AND UP). 
+- If the ball hits a brick the Y direction reverses, the brick should also be erased. 
+
+\end{document}
